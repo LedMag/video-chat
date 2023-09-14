@@ -7,14 +7,14 @@ const ts = require('gulp-typescript');
 
 function html() {
     return src(['src/**/*.html', '!src/components/**/*.html'])
-        .pipe(dest('build'))
+        .pipe(dest('dist'))
         .pipe(browserSync.stream());
 }
 
 function css() {
     return src(['src/**/*.css'])
         .pipe(autoprefixer())
-        .pipe(dest('build'))
+        .pipe(dest('dist'))
         .pipe(browserSync.stream());
 }
 
@@ -27,29 +27,29 @@ function tscript() {
             outFile: 'main.js',
             moduleResolution: "node"
         }))
-        .pipe(dest('build'))
+        .pipe(dest('dist'))
         .pipe(browserSync.stream());
 }
 
 function images() {
     return src(['src/**/*.jpeg', 'src/**/*.jpg', 'src/**/*.png', 'src/**/*.svg', 'src/**/*.webp'])
-        .pipe(dest('build'))
+        .pipe(dest('dist'))
         .pipe(browserSync.stream());
 }
 
 function fonts() {
     return src(['src/assets/fonts/**/*'])
-        .pipe(dest('build/assets/fonts'))
+        .pipe(dest('dist/assets/fonts'))
         .pipe(browserSync.stream());
 }
 
 function clean() {
-    return del(['./build/*']);
+    return del(['./dist/*']);
 }
 
 function dev() {
     browserSync.init({
-        server: './build'
+        server: './dist'
     });
     watch('src/**/*.html', html);
     watch('src/**/*.css', css);

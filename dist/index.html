@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="main.css">
+    <title>Document</title>
+</head>
+<body>
+    <ul id="clients"></ul>
+
+    <video id="localVideo" autoplay playsinline width="640" height="480"></video>
+         
+    <video id="remoteVideo" autoplay playsinline width="640" height="480"></video>
+
+    <form id="devices">
+        <select name="video-input" class="video-input" id="video-input">
+        </select>
+        <select name="audio-input" class="audio-input" id="audio-input">
+        </select>
+
+        <button type="submit">Ok</button>
+    </form>
+
+    <label for="video">Video</label>
+    <input name="video" class="video" id="videoCheck" type="checkbox">
+    <label for="audio">Audio</label>
+    <input name="audio" class="audio" id="audioCheck" type="checkbox">
+
+    <label for="videoUser">User Video</label>
+    <input name="videoUser" class="video" id="videoUserCheck" type="checkbox">
+    <label for="audioUser">User Audio</label>
+    <input name="audioUSer" class="audio" id="audioUserCheck" type="checkbox">
+
+    <!-- <form id="user">
+        <input type="text" name="name" class="name">
+        <input type="text" name="age" class="age">
+        <select name="sex" class="sex">
+            <option value="male"></option>
+            <option value="female"></option>
+        </select>
+        <select name="lang" class="lang">
+            <option value="en">en</option>
+            <option value="es">es</option>
+            <option value="ru">ru</option>
+        </select>
+
+        <input type="text" name="target-age-min" class="target-age-min">
+        <input type="text" name="target-age-max" class="target-age-max">
+        <select name="target-sex" class="target-sex">
+            <option value="male"></option>
+            <option value="female"></option>
+        </select>
+        <select name="target-lang" class="target-lang">
+            <option value="en">en</option>
+            <option value="es">es</option>
+            <option value="ru">ru</option>
+        </select>
+    </form> -->
+
+    <script src="main.js"></script>
+</body>
+</html>
