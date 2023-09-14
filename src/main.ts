@@ -450,7 +450,9 @@ const route = (data: DataType) => {
 
 (async function init() {
   console.log('Start');
-  socket = new WebSocket('ws://192.168.1.135:8080');
+
+  const url = `${process.env.BACKEND_HOST}:${process.env.BACKEND_PORT}` || 'ws://localhost:8080';
+  socket = new WebSocket(url);
 
   socket.addEventListener('open', (event) => {
     console.log([token], 'Conexión establecida:', event);
