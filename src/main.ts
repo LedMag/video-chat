@@ -14,6 +14,7 @@ const localVideoFrame = document.getElementById('localVideo') as HTMLVideoElemen
 const remoteVideoFrame = document.getElementById('remoteVideo') as HTMLVideoElement;
 const clientsList = document.getElementById('clients') as HTMLUListElement;
 
+const isProd = true;
 
 const token = generateToken(32);
 
@@ -451,7 +452,10 @@ const route = (data: DataType) => {
 (async function init() {
   console.log('Start');
 
-  const url = `${process.env.BACKEND_HOST}:${process.env.BACKEND_PORT}` || 'ws://localhost:8080';
+  const url = isProd ? 'wss://911531b.online-server.cloud/' : 'ws://localhost:8888';
+
+  console.log('Url: ', url);
+
   socket = new WebSocket(url);
 
   socket.addEventListener('open', (event) => {
