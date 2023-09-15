@@ -452,7 +452,7 @@ const route = (data: DataType) => {
 (async function init() {
   console.log('Start');
 
-  const url = isProd ? 'wss://911531b.online-server.cloud/' : 'ws://localhost:8888';
+  const url = isProd ? 'wss://911531b.online-server.cloud/ws/' : 'ws://localhost:8080';
 
   console.log('Url: ', url);
 
