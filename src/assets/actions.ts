@@ -12,5 +12,10 @@ const ACTIONS: Record<string, ActionType> = {
     ICE_CANDIDATE: 'ice-candidate',
     SESSION_DESCRIPTION: 'session-description',
     LOGIN: 'login',
-    LOGOUT: 'logout'
+    LOGOUT: 'logout',
+    INCOMMING_CALL: 'incoming-call',
+    OUTCOMMING_CALL: 'outcoming-call',
+    DENY_INCOMMING_CALL: 'deny-incoming-call',
+    ACCEPT_INCOMMING_CALL: 'accept-incoming-call',
+    CANCEL_OUTCOMMING_CALL: 'cancel-outcoming-call',
 };

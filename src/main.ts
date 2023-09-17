@@ -14,14 +14,15 @@ const localVideoFrame = document.getElementById('localVideo') as HTMLVideoElemen
 const remoteVideoFrame = document.getElementById('remoteVideo') as HTMLVideoElement;
 const clientsList = document.getElementById('clients') as HTMLUListElement;
 
-const isProd = true;
+const isProd = false;
 
-const token = generateToken(32);
+const token = generateToken(64);
 
 let socket: WebSocket;
 let localStream: MediaStream;
-let remoteStream: MediaStream;
+let remoteStream: MediaStream = new MediaStream();
 let dataChannel: RTCDataChannel;
+let clients: string[];
 
 let tracks: MediaStreamTrack[];
 let audioTracks: MediaStreamTrack[];
@@ -70,7 +71,7 @@ const enumerateDevices = async () => {
   }
 };
 
-enumerateDevices().then( ({devices}) => {
+enumerateDevices().then(({ devices }) => {
   renderDevices(devices);
 });
 
@@ -79,9 +80,9 @@ const renderDevices = (devices: MediaDeviceInfo[]) => {
 
   videoChk.checked = !!videoIsOn;
   audioChk.checked = !!audioIsOn;
-  
-  devices.forEach( device => {
-    if(device.kind === "audioinput") {
+
+  devices.forEach(device => {
+    if (device.kind === "audioinput") {
       const option = document.createElement('option');
       audioDeviceId = device.deviceId;
       option.value = audioDeviceId;
@@ -89,7 +90,7 @@ const renderDevices = (devices: MediaDeviceInfo[]) => {
       audioInput.append(option);
     }
 
-    if(device.kind === "videoinput") {
+    if (device.kind === "videoinput") {
       const option = document.createElement('option');
       videoDeviceId = device.deviceId;
       option.value = videoDeviceId;
@@ -136,33 +137,20 @@ videoUserChk.addEventListener('change', async (event) => {
 
 const prepareConstraints = (): MediaStreamConstraints => {
   return {
-    audio: audioDeviceId && audioIsOn ? {...DEFAULT_AUDIO_CONSTRAINTS, deviceId: audioDeviceId} : false,
-    video: videoDeviceId && videoIsOn ? {...DEFAULT_VIDEO_CONSTRAINTS, deviceId: videoDeviceId} : false
+    audio: audioDeviceId && audioIsOn ? { ...DEFAULT_AUDIO_CONSTRAINTS, deviceId: audioDeviceId } : false,
+    video: videoDeviceId && videoIsOn ? { ...DEFAULT_VIDEO_CONSTRAINTS, deviceId: videoDeviceId } : false
   }
 };
 
-const startStream = async (constraints) => {
-  try {
-    localStream = await openMediaDevices(constraints);
-    localVideoFrame.srcObject = localStream;
-
-    tracks = localStream.getTracks();
-    audioTracks = localStream.getAudioTracks();
-    videoTracks = localStream.getVideoTracks();
-  } catch (error) {
-    console.error('Error accessing media devices.', error);
-  }
-}
-
 const stopStream = () => {
   if (tracks) {
-      tracks.forEach(track => {
-          track.stop();
-      });
+    tracks.forEach(track => {
+      track.stop();
+    });
   }
 
   if (localVideoFrame) {
-      localVideoFrame.srcObject = null;
+    localVideoFrame.srcObject = null;
   }
 
   localStream = null;
@@ -171,33 +159,22 @@ const stopStream = () => {
   videoTracks = null;
 };
 
-// remoteVideoFrame.srcObject = remoteStream;
-
-// const createRTC = async (config) => {
-//   console.log([token], 'Create RTC')
-//   return new RTCPeerConnection(config);
-// }
-
-const allUsers = new Map();
 
 const configuration = { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] };
 
-// let constraints = {
-//   video: {
-//     width: { min: 640, ideal: 1920, max: 640 },
-//     height: { min: 480, ideal: 1080, max: 640 },
-//   },
-//   audio: false // {'echoCancellation': true}
-// }
-
 const peerConnection: RTCPeerConnection = new RTCPeerConnection(configuration);
 
-const openMediaDevices = async (constraints): Promise<MediaStream> => {
-  return navigator.mediaDevices.getUserMedia(constraints);
-}
+const startStream = async () => {
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia(prepareConstraints());
+    localVideoFrame.srcObject = localStream;
 
-const go = async (userId) => {
-  remoteStream = new MediaStream();
+    tracks = localStream.getTracks();
+    audioTracks = localStream.getAudioTracks();
+    videoTracks = localStream.getVideoTracks();
+  } catch (error) {
+    console.error('Error accessing media devices.', error);
+  }
 
   localStream.getTracks().forEach((track: MediaStreamTrack) => {
     peerConnection.addTrack(track, localStream);
@@ -219,13 +196,26 @@ const go = async (userId) => {
 
     remoteVideoFrame.srcObject = remoteStream;
   };
+}
+
+const createOffer = async (data: DataType) => {
+  const { from, room } = data;
+
+  peerConnection.onconnectionstatechange = event => {
+    console.log([token], 'Connection State Change Event: ', event)
+    if (peerConnection.connectionState === 'connected') {
+      console.log([token], `You are connected to ${room} room`);
+    }
+  };
 
   peerConnection.onicecandidate = event => {
+    console.log([token], 'IceCandidate: ', event.candidate);
+
     if (event.candidate) {
       const body: DataType = {
         from: token,
-        to: userId,
-        method: ACTIONS.ICE_CANDIDATE,
+        to: from,
+        action: ACTIONS.ICE_CANDIDATE,
         message: { candidate: event.candidate }
       }
       console.log([token], 'Send IceCandidate: ', body);
@@ -233,36 +223,29 @@ const go = async (userId) => {
       socket.send(JSON.stringify(body));
     }
   };
-}
 
-async function makeCall(userId) {
-  console.log([token], 'Call to: ', userId)
-
-  localVideoFrame.srcObject = localStream;
-
-  await go(userId);
-
-  peerConnection.onconnectionstatechange = event => {
-    console.log([token], 'Connection State Change Event: ', event)
-    if (peerConnection.connectionState === 'connected') {
-      console.log([token], `You are connected with user - ${userId}`);
-    }
+  peerConnection.onicecandidateerror = error => {
+    console.log('ICE error: ', error);
   };
 
-  const offer = await peerConnection.createOffer();
-  await peerConnection.setLocalDescription(offer);
+  await startStream();
 
-  const data: DataType = {
-    method: ACTIONS.OFFER,
+  const offer = await peerConnection.createOffer();
+  await peerConnection.setLocalDescription(offer).catch(err => {
+    console.log('Error during set local description. Error: ', err.message);
+  });
+
+  const body: DataType = {
+    action: ACTIONS.OFFER,
     from: token,
-    to: userId,
+    room: room,
     message: {
       offer
     }
   }
-  console.log([token], 'Send Offer: ', data);
+  console.log([token], 'Send Offer: ', body);
 
-  socket.send(JSON.stringify(data));
+  socket.send(JSON.stringify(body));
 }
 
 const login = () => {
@@ -270,7 +253,7 @@ const login = () => {
 
   const data: DataType = {
     from: token,
-    method: ACTIONS.LOGIN,
+    action: ACTIONS.LOGIN,
   }
   socket.send(JSON.stringify(data));
 }
@@ -280,7 +263,7 @@ const logout = () => {
 
   const body: DataType = {
     from: token,
-    method: ACTIONS.LOGOUT,
+    action: ACTIONS.LOGOUT,
   }
   socket.send(JSON.stringify(body));
 }
@@ -288,7 +271,7 @@ const logout = () => {
 const setClients = (data: DataType) => {
   console.log([token], 'Set Clients: ', data)
 
-  const clients = data.message.clients;
+  clients = data.message.clients;
 
   clientsList.innerHTML = '';
 
@@ -297,11 +280,11 @@ const setClients = (data: DataType) => {
       const li = document.createElement('li');
       const btn = document.createElement('button');
       btn.setAttribute('data-user', client);
-      btn.innerText = `Call to ${client}`;
+      btn.innerText = `Call to Client_${client[3]}`;
       btn.addEventListener('click', async (event: any) => {
         console.log([token], 'Click for call to - ', client);
         const userId = event.target.getAttribute('data-user');
-        await makeCall(userId);
+        doOutcommingCall(userId);
       })
 
       li.appendChild(btn);
@@ -311,100 +294,84 @@ const setClients = (data: DataType) => {
   });
 }
 
-const userLogin = (data: DataType) => {
-  console.log([token], 'User Login: ', data)
-
-  allUsers.set(data.from, {});
-}
-
-const userLogout = (data: DataType) => {
-  console.log([token], 'User Logout: ', data)
-
-  allUsers.delete(data.from);
-}
-
-// const createPeerConnection = async (userId: string, socket: WebSocket) => {
-//   peerConnection = new RTCPeerConnection(servers);
-
-//   remoteStream = new MediaStream();
-//   remoteVideoFrame.srcObject = remoteStream;
-//   remoteVideoFrame.style.display = 'block';
-
-//   document.getElementById('user-1').classList.add('smallFrame')
-
-
-//   if (!localStream) {
-//     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-//     localVideoFrame.srcObject = localStream
-//   }
-
-//   localStream.getTracks().forEach((track) => {
-//     peerConnection.addTrack(track, localStream)
-//   })
-
-//   peerConnection.ontrack = (event) => {
-//     event.streams[0].getTracks().forEach((track) => {
-//       remoteStream.addTrack(track)
-//     })
-//   }
-
-//   peerConnection.onicecandidate = async (event) => {
-//     if (event.candidate) {
-//       socket.send(JSON.stringify({
-//         clientId: token,
-//         method: ACTIONS.ICE_CANDIDATE,
-//         message: { candidate: event.candidate, userId }
-//       }))
-//     }
-//   }
-// }
-
-const setOffer = async (data: DataType) => {
-  const offer = data.message.offer;
-
-  if (offer && !peerConnection.remoteDescription) {
-    console.log([token], 'setOffer', data);
-
-    const remoteDesc = new RTCSessionDescription(offer);
-    await peerConnection.setRemoteDescription(remoteDesc);
-  }
-}
-
-const setAnswer = async (data: DataType) => {
+const answer = async (data: DataType) => {
   const answer = data.message.answer;
 
-  if (answer && !peerConnection.remoteDescription) {
+  if (answer) {
     console.log([token], 'setAnswer', data);
 
     const remoteDesc = new RTCSessionDescription(answer);
-    await peerConnection.setRemoteDescription(remoteDesc);
-  }
-}
-
-const answer = async (data: DataType) => {
-  await setAnswer(data);
+    await peerConnection.setRemoteDescription(remoteDesc)
+      .then(() => {
+        console.log('Answer was setted correctly')
+      })
+      .catch(err => {
+        console.log('Error during set remote description. Error: ', err.message);
+      });
+  };
 }
 
 const offer = async (data: DataType) => {
-  const userId = data.from;
+  const { from, room } = data;
 
-  localVideoFrame.srcObject = localStream;
+  const offer = data.message.offer;
 
-  await go(userId);
+  peerConnection.onicecandidate = event => {
+    console.log([token], 'IceCandidate: ', event.candidate);
 
-  await setOffer(data);
+    if (event.candidate) {
+      const body: DataType = {
+        from: token,
+        to: from,
+        action: ACTIONS.ICE_CANDIDATE,
+        message: { candidate: event.candidate }
+      }
+      console.log([token], 'Send IceCandidate: ', body);
+
+      socket.send(JSON.stringify(body));
+    }
+  };
+
+  peerConnection.onicecandidateerror = error => {
+    console.log('ICE error: ', error);
+  };
+
+  await startStream();
+
+  if (offer) {
+    console.log([token], 'setOffer', data);
+
+    const remoteDesc = new RTCSessionDescription(offer);
+    await peerConnection.setRemoteDescription(remoteDesc)
+      .then(async () => {
+        console.log('Offer was setted correctly');
+      })
+      .catch(err => {
+        console.log('Error during set remote description. Error: ', err.message);
+      });
+  };
+
+  peerConnection.onconnectionstatechange = event => {
+    console.log([token], 'Connection State Change Event: ', event)
+    if (peerConnection.connectionState === 'connected') {
+      console.log([token], `You are connected to ${room} room`);
+    }
+  };
+
   const answer = await peerConnection.createAnswer();
-  await peerConnection.setLocalDescription(new RTCSessionDescription(answer));
+  await peerConnection.setLocalDescription(answer).catch(err => {
+    console.log('Error during set local description. Error: ', err.message);
+  });
 
   const body: DataType = {
-    method: ACTIONS.ANSWER,
+    action: ACTIONS.ANSWER,
     from: token,
-    to: userId,
+    to: from,
     message: {
       answer
     }
   }
-  console.log([token], 'Send Answer', body);
+  console.log([token], 'Send Answer: ', body);
 
   socket.send(JSON.stringify(body));
 }
@@ -425,6 +392,16 @@ const addIceCandidate = async (data: DataType) => {
   }
 }
 
+const incommingCall = async (data: DataType) => {
+  const userId = data.from;
+
+  console.log(`Incomming Call from Client_${userId[3]}`);
+
+  await createOffer(data);
+};
+
+const outcommingCall = () => { };
+
 
 const routing = new Map([
   [ACTIONS.MESSAGE, console.log],
@@ -439,20 +416,34 @@ const routing = new Map([
   [ACTIONS.OFFER, offer],
   [ACTIONS.ICE_CANDIDATE, addIceCandidate],
   [ACTIONS.SESSION_DESCRIPTION, console.log],
-  [ACTIONS.LOGIN, userLogin],
-  [ACTIONS.LOGOUT, userLogout]
+  [ACTIONS.LOGIN, setClients],
+  [ACTIONS.LOGOUT, setClients],
+  [ACTIONS.INCOMMING_CALL, incommingCall],
+  [ACTIONS.OUTCOMMING_CALL, outcommingCall]
 ])
 
 const route = (data: DataType) => {
-  const { method } = data;
+  const { action } = data;
 
-  return routing.get(method);
+  return routing.get(action);
+}
+
+const doOutcommingCall = (to: string) => {
+  const data: DataType = {
+    from: token,
+    to,
+    room: 'test123',
+    action: ACTIONS.OUTCOMMING_CALL,
+    message: `User Client_${token[3]} are calling you`
+  }
+
+  socket.send(JSON.stringify(data));
 }
 
 (async function init() {
   console.log('Start');
 
-  const url = isProd ? 'wss://911531b.online-server.cloud/ws/' : 'ws://localhost:8080';
+  const url = isProd ? `wss://911531b.online-server.cloud/ws?clientId=${token}` : `ws://localhost:8080/ws?clientId=${token}`;
 
   console.log('Url: ', url);
 
@@ -460,16 +451,14 @@ const route = (data: DataType) => {
 
   socket.addEventListener('open', (event) => {
     console.log([token], 'Conexión establecida:', event);
-    login();
   });
 
   socket.onmessage = (event) => {
     let data: DataType;
     try {
       data = JSON.parse(event.data);
-      console.log([token], 'Data: ', data)
       const fn = route(data);
-      console.log('Function: ', fn.name, data.method)
+      console.log('Function: ', fn.name, data.action)
       if (fn) fn(data);
     } catch (error) {
       console.log([token], `Data is not valid`)
@@ -479,6 +468,4 @@ const route = (data: DataType) => {
   socket.addEventListener('close', (event) => {
     console.log([token], 'Conexión cerrada:', event);
   });
-
-  window.addEventListener("beforeunload", logout);
 })()
