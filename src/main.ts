@@ -106,9 +106,6 @@ devicesForm.addEventListener('submit', async (event) => {
 
   videoDeviceId = formData.get('video-input') as string;
   audioDeviceId = formData.get('audio-input') as string;
-
-  const constraints = prepareConstraints();
-  await startStream(constraints);
 });
 
 audioChk.addEventListener('change', async (event) => {
