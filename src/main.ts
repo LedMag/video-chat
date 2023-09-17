@@ -14,7 +14,7 @@ const localVideoFrame = document.getElementById('localVideo') as HTMLVideoElemen
 const remoteVideoFrame = document.getElementById('remoteVideo') as HTMLVideoElement;
 const clientsList = document.getElementById('clients') as HTMLUListElement;
 
-const isProd = false;
+const isProd = true;
 
 const token = generateToken(64);
 
